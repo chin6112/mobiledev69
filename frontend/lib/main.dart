@@ -710,11 +710,12 @@ class _PlannerState extends State<_Planner> {
     try {
       final slots = await widget.api.getSlots(widget.tripId!);
       final tasks = await widget.api.getTasks(widget.tripId!);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _slots = slots;
           _tasks = tasks;
         });
+      }
     } on ApiException {
       // Keep the planner useful while the trip has no server data yet.
     } finally {
@@ -737,9 +738,10 @@ class _PlannerState extends State<_Planner> {
         });
       }
     } on ApiException catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(error.message)));
+      }
     }
   }
 
@@ -755,9 +757,10 @@ class _PlannerState extends State<_Planner> {
         });
       }
     } on ApiException catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(error.message)));
+      }
     }
   }
 
