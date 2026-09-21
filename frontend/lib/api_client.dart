@@ -30,6 +30,27 @@ class TripMateApi {
 
   Future<bool> get isAuthenticated async => (await _read(_accessKey)) != null;
 
+  /// Reads the `user_id` claim out of the stored JWT access token so the UI
+  /// can tell which settlement transfers involve the signed-in user without a
+  /// dedicated "who am I" endpoint.
+  Future<int?> get currentUserId async {
+    final token = await _read(_accessKey);
+    if (token == null) return null;
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+    try {
+      final normalized = base64Url.normalize(parts[1]);
+      final payload =
+          jsonDecode(utf8.decode(base64Url.decode(normalized)))
+              as Map<String, dynamic>;
+      final userId = payload['user_id'];
+      if (userId is int) return userId;
+      return int.tryParse(userId?.toString() ?? '');
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> register(String username, String password) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register/'),
@@ -96,6 +117,28 @@ class TripMateApi {
     return (jsonDecode(response.body) as List).cast<Map<String, dynamic>>();
   }
 
+  Future<Map<String, dynamic>> createSlot({
+    required int tripId,
+    required String title,
+    required String slotType,
+    required int capacity,
+    required double price,
+  }) async {
+    final response = await _authorizedRequest(
+      (headers) => http.post(
+        _uri('trips/$tripId/slots/'),
+        headers: {...headers, 'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'title': title,
+          'slot_type': slotType,
+          'capacity': capacity,
+          'price': price,
+        }),
+      ),
+    );
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> bookSlot(int slotId) async {
     final response = await _authorizedRequest(
       (headers) => http.post(_uri('slots/$slotId/book/'), headers: headers),
@@ -138,6 +181,21 @@ class TripMateApi {
       (headers) => http.get(_uri('trips/$tripId/tasks/'), headers: headers),
     );
     return (jsonDecode(response.body) as List).cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> createTask({
+    required int tripId,
+    required String title,
+    String category = 'team',
+  }) async {
+    final response = await _authorizedRequest(
+      (headers) => http.post(
+        _uri('trips/$tripId/tasks/'),
+        headers: {...headers, 'Content-Type': 'application/json'},
+        body: jsonEncode({'title': title, 'category': category}),
+      ),
+    );
+    return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> updateTask({
