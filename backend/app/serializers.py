@@ -1,13 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from .models import Booking, BookingSlot, Expense, ExpenseShare, Trip, TripMember, TripTask
-
-class BookingSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Booking
-        fields = ['id', 'destination_name', 'start_date', 'end_date', 'price']
-        # custom serializer สำหรับล็อกอินเพื่อส่งกลับ Custom Token Claims
+from .models import BookingSlot, Expense, ExpenseShare, Trip, TripMember, TripTask
 
 
 class TripMemberSerializer(serializers.ModelSerializer):

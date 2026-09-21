@@ -225,6 +225,7 @@ class _TripMateHomeState extends State<TripMateHome> {
   DateTime _tripEnd = DateTime(2026, 10, 15);
   bool _syncing = false;
   final List<String> _expenses = ['ที่พัก 4,800 บาท', 'ค่าเช่ารถ 2,400 บาท'];
+  List<Map<String, dynamic>> _settlement = [];
 
   @override
   void initState() {
@@ -249,11 +250,22 @@ class _TripMateHomeState extends State<TripMateHome> {
           _tripEnd =
               DateTime.tryParse(trip['end_date']?.toString() ?? '') ?? _tripEnd;
         });
+        await _loadSettlement();
       }
     } on ApiException {
       // Keep the local demo trip visible when the API has no data yet.
     } finally {
       if (mounted) setState(() => _syncing = false);
+    }
+  }
+
+  Future<void> _loadSettlement() async {
+    if (_tripId == null) return;
+    try {
+      final transfers = await widget.api.getSettlement(_tripId!);
+      if (mounted) setState(() => _settlement = transfers);
+    } on ApiException {
+      if (mounted) setState(() => _settlement = []);
     }
   }
 
@@ -441,7 +453,12 @@ class _TripMateHomeState extends State<TripMateHome> {
         onCreateTrip: _createTrip,
       ),
       _Planner(api: widget.api, tripId: _tripId),
-      _Expenses(expenses: _expenses, onAdd: _showExpenseDialog),
+      _Expenses(
+        expenses: _expenses,
+        settlement: _settlement,
+        onAdd: _showExpenseDialog,
+        onRefreshSettlement: _loadSettlement,
+      ),
     ];
     return Scaffold(
       appBar: AppBar(
@@ -693,7 +710,11 @@ class _PlannerState extends State<_Planner> {
     try {
       final slots = await widget.api.getSlots(widget.tripId!);
       final tasks = await widget.api.getTasks(widget.tripId!);
-      if (mounted) setState(() { _slots = slots; _tasks = tasks; });
+      if (mounted)
+        setState(() {
+          _slots = slots;
+          _tasks = tasks;
+        });
     } on ApiException {
       // Keep the planner useful while the trip has no server data yet.
     } finally {
@@ -705,7 +726,10 @@ class _PlannerState extends State<_Planner> {
     final taskId = int.tryParse(task['id']?.toString() ?? '');
     if (taskId == null) return;
     try {
-      final updated = await widget.api.updateTask(taskId: taskId, isDone: value);
+      final updated = await widget.api.updateTask(
+        taskId: taskId,
+        isDone: value,
+      );
       if (mounted) {
         setState(() {
           final index = _tasks.indexWhere((item) => item['id'] == task['id']);
@@ -713,7 +737,9 @@ class _PlannerState extends State<_Planner> {
         });
       }
     } on ApiException catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
     }
   }
 
@@ -729,7 +755,9 @@ class _PlannerState extends State<_Planner> {
         });
       }
     } on ApiException catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.message)));
     }
   }
 
@@ -758,35 +786,68 @@ class _PlannerState extends State<_Planner> {
             subtitle: Text('เพิ่มที่พักหรือกิจกรรมผ่านระบบจัดการทริป'),
           ),
         ),
-      ..._slots.map((slot) => Card(child: ListTile(
-        leading: Icon(slot['slot_type'] == 'stay' ? Icons.cabin_rounded : Icons.event_available_rounded, color: const Color(0xFF176B87)),
-        title: Text(slot['title']?.toString() ?? 'สล็อตจอง', style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text('${slot['booked_count'] ?? 0}/${slot['capacity'] ?? 0} ที่ • ฿${slot['price'] ?? 0}'),
-        trailing: (slot['booked_count'] ?? 0) >= (slot['capacity'] ?? 0) ? const Icon(Icons.check_circle, color: Colors.green) : OutlinedButton(onPressed: () => _bookSlot(slot), child: const Text('จอง')),
-      ))),
+      ..._slots.map(
+        (slot) => Card(
+          child: ListTile(
+            leading: Icon(
+              slot['slot_type'] == 'stay'
+                  ? Icons.cabin_rounded
+                  : Icons.event_available_rounded,
+              color: const Color(0xFF176B87),
+            ),
+            title: Text(
+              slot['title']?.toString() ?? 'สล็อตจอง',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text(
+              '${slot['booked_count'] ?? 0}/${slot['capacity'] ?? 0} ที่ • ฿${slot['price'] ?? 0}',
+            ),
+            trailing: (slot['booked_count'] ?? 0) >= (slot['capacity'] ?? 0)
+                ? const Icon(Icons.check_circle, color: Colors.green)
+                : OutlinedButton(
+                    onPressed: () => _bookSlot(slot),
+                    child: const Text('จอง'),
+                  ),
+          ),
+        ),
+      ),
       const SizedBox(height: 24),
       const Text(
         'เช็กลิสต์ทีม',
         style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
       ),
       if (_tasks.isEmpty)
-        const Text('ยังไม่มีงานเตรียมทริป', style: TextStyle(color: Colors.grey)),
-      ..._tasks.map((task) => CheckboxListTile(
-        value: task['is_done'] == true,
-        onChanged: (value) => _toggleTask(task, value ?? false),
-        contentPadding: EdgeInsets.zero,
-        title: Text(task['title']?.toString() ?? 'งานเตรียมทริป'),
-        subtitle: Text(task['assigned_to_name']?.toString() ?? 'ยังไม่ได้มอบหมาย'),
-        controlAffinity: ListTileControlAffinity.leading,
-      )),
+        const Text(
+          'ยังไม่มีงานเตรียมทริป',
+          style: TextStyle(color: Colors.grey),
+        ),
+      ..._tasks.map(
+        (task) => CheckboxListTile(
+          value: task['is_done'] == true,
+          onChanged: (value) => _toggleTask(task, value ?? false),
+          contentPadding: EdgeInsets.zero,
+          title: Text(task['title']?.toString() ?? 'งานเตรียมทริป'),
+          subtitle: Text(
+            task['assigned_to_name']?.toString() ?? 'ยังไม่ได้มอบหมาย',
+          ),
+          controlAffinity: ListTileControlAffinity.leading,
+        ),
+      ),
     ],
   );
 }
 
 class _Expenses extends StatelessWidget {
-  const _Expenses({required this.expenses, required this.onAdd});
+  const _Expenses({
+    required this.expenses,
+    required this.settlement,
+    required this.onAdd,
+    required this.onRefreshSettlement,
+  });
   final List<String> expenses;
+  final List<Map<String, dynamic>> settlement;
   final VoidCallback onAdd;
+  final Future<void> Function() onRefreshSettlement;
 
   @override
   Widget build(BuildContext context) => ListView(
@@ -854,7 +915,48 @@ class _Expenses extends StatelessWidget {
       ),
       const SizedBox(height: 18),
       FilledButton.icon(
-        onPressed: () {},
+        onPressed: () async {
+          await onRefreshSettlement();
+          if (!context.mounted) return;
+          await showModalBottomSheet<void>(
+            context: context,
+            showDragHandle: true,
+            builder: (context) => SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'รายการที่ต้องโอน',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (settlement.isEmpty)
+                      const Text('ทุกคนเคลียร์ยอดเรียบร้อยแล้ว'),
+                    ...settlement.map(
+                      (transfer) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.arrow_forward_rounded,
+                          color: Color(0xFF176B87),
+                        ),
+                        title: Text(
+                          'ผู้ใช้ ${transfer['from_user']} โอนให้ผู้ใช้ ${transfer['to_user']}',
+                        ),
+                        trailing: Text('฿${transfer['amount']}'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
         icon: const Icon(Icons.payments_outlined),
         label: const Text('ดูรายการที่ต้องโอนทั้งหมด'),
       ),

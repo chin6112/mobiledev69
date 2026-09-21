@@ -1,5 +1,4 @@
 from .views import (
-    BookingListView,
     SlotBookingView,
     TripDetailView,
     TripExpensesView,
@@ -12,7 +11,6 @@ from .views import (
 from django.urls import path
 
 urlpatterns = [
-    path('bookings/', BookingListView.as_view(), name='booking-list'),
     path('trips/', TripListCreateView.as_view(), name='trip-list-create'),
     path('trips/<int:trip_id>/', TripDetailView.as_view(), name='trip-detail'),
     path('trips/<int:trip_id>/slots/', TripSlotsView.as_view(), name='trip-slots'),

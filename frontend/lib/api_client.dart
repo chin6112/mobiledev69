@@ -125,6 +125,14 @@ class TripMateApi {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  Future<List<Map<String, dynamic>>> getSettlement(int tripId) async {
+    final response = await _authorizedRequest(
+      (headers) => http.get(_uri('trips/$tripId/settlement/'), headers: headers),
+    );
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return (data['transfers'] as List).cast<Map<String, dynamic>>();
+  }
+
   Future<List<Map<String, dynamic>>> getTasks(int tripId) async {
     final response = await _authorizedRequest(
       (headers) => http.get(_uri('trips/$tripId/tasks/'), headers: headers),
