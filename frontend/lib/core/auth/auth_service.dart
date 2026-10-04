@@ -5,7 +5,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:openid_client/openid_client.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../core/app_config.dart';
+import '../config/app_config.dart';
+import '../result/result.dart';
 
 /// Talks to the OIDC provider (Authorization Code + PKCE) and persists the
 /// resulting credential in secure storage.
@@ -19,12 +20,12 @@ class AuthService {
   final FlutterSecureStorage _storage;
   Credential? _credential;
 
-  Credential? get credential => _credential;
+  bool get hasCredential => _credential != null;
 
   String? get accessToken {
     final credential = _credential;
     if (credential == null || _isExpired(credential)) return null;
-    return credential.toJson()['token']?['access_token'] as String?;
+    return _tokenJson(credential)['access_token'] as String?;
   }
 
   Map<String, dynamic> get idTokenClaims =>
@@ -66,12 +67,15 @@ class AuthService {
     final params = callbackUri.queryParameters;
     if (params['error'] != null) {
       throw AppException(
-        params['error_description'] ?? 'เข้าสู่ระบบไม่สำเร็จ (${params['error']})',
+        params['error_description'] ??
+            'เข้าสู่ระบบไม่สำเร็จ (${params['error']})',
       );
     }
     final pending = await _storage.read(key: _pendingKey);
     if (pending == null) {
-      throw const AppException('ไม่พบข้อมูลการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง');
+      throw const AppException(
+        'ไม่พบข้อมูลการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง',
+      );
     }
     final data = jsonDecode(pending) as Map<String, dynamic>;
     try {
@@ -136,8 +140,11 @@ class AuthService {
     }
   }
 
+  Map<String, dynamic> _tokenJson(Credential credential) =>
+      (credential.toJson()['token'] as Map).cast<String, dynamic>();
+
   bool _isExpired(Credential credential) {
-    final expiresAt = credential.toJson()['token']?['expires_at'];
+    final expiresAt = _tokenJson(credential)['expires_at'];
     if (expiresAt is! num) return false;
     return DateTime.fromMillisecondsSinceEpoch(
       expiresAt.toInt() * 1000,
@@ -148,7 +155,9 @@ class AuthService {
     const chars =
         '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
     final random = Random.secure();
-    return List.generate(length, (_) => chars[random.nextInt(chars.length)])
-        .join();
+    return List.generate(
+      length,
+      (_) => chars[random.nextInt(chars.length)],
+    ).join();
   }
 }

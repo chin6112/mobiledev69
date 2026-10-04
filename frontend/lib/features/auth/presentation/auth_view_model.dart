@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-import '../repositories/auth_repository.dart';
+import '../data/auth_repository.dart';
+import '../domain/current_user.dart';
 
 enum AuthStatus { unknown, unauthenticated, authenticated }
 
@@ -17,7 +18,6 @@ class AuthViewModel extends ChangeNotifier {
   bool get busy => _busy;
   String? get error => _error;
   CurrentUser? get user => _repository.currentUser;
-  String? get accessToken => _repository.accessToken;
 
   Future<void> restore() async {
     final restored = await _repository.restoreSession();
@@ -29,34 +29,25 @@ class AuthViewModel extends ChangeNotifier {
     _busy = true;
     _error = null;
     notifyListeners();
-    try {
-      await _repository.startLogin();
-    } on Exception catch (error) {
-      _error = error.toString();
-    } finally {
-      _busy = false;
-      notifyListeners();
-    }
+    final result = await _repository.startLogin();
+    _error = result.errorMessage;
+    _busy = false;
+    notifyListeners();
   }
 
-  /// Returns true when the provider callback produced a valid session.
   Future<bool> completeLogin(Uri callbackUri) async {
-    _error = null;
-    try {
-      await _repository.completeLogin(callbackUri);
-      _status = AuthStatus.authenticated;
-      notifyListeners();
-      return true;
-    } on Exception catch (error) {
-      _error = error.toString();
-      _status = AuthStatus.unauthenticated;
-      notifyListeners();
-      return false;
-    }
+    final result = await _repository.completeLogin(callbackUri);
+    _error = result.errorMessage;
+    _status = _error == null
+        ? AuthStatus.authenticated
+        : AuthStatus.unauthenticated;
+    notifyListeners();
+    return _error == null;
   }
 
   Future<void> logout() async {
     _status = AuthStatus.unauthenticated;
+    _error = null;
     notifyListeners();
     await _repository.logout();
   }

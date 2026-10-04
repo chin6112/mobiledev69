@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
 
-import '../core/app_config.dart';
+import '../config/app_config.dart';
+import '../result/result.dart';
 
-class ApiService {
-  ApiService({
+/// Thin dio wrapper: adds the bearer token and maps failures to [AppException].
+class ApiClient {
+  ApiClient({
     required String? Function() accessToken,
     required Future<void> Function() onUnauthorized,
     Dio? dio,
@@ -41,7 +43,7 @@ class ApiService {
   Future<dynamic> patch(String path, Object data) =>
       _send(() => _dio.patch(path, data: data));
 
-  Future<dynamic> delete(String path) => _send(() => _dio.delete(path));
+  Future<void> delete(String path) => _send(() => _dio.delete(path));
 
   Future<dynamic> _send(Future<Response<dynamic>> Function() request) async {
     try {
@@ -54,15 +56,18 @@ class ApiService {
   AppException _toException(DioException error) {
     final status = error.response?.statusCode;
     if (status == null) {
-      return const AppException('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ต');
+      return const AppException(
+        'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ตหรือเปิด backend',
+      );
     }
     if (status == 401) {
       return AppException('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่', status);
     }
     final data = error.response?.data;
-    if (data is Map) {
-      final detail = data['detail'] ?? data.values.firstOrNull;
-      if (detail != null) return AppException(detail.toString(), status);
+    if (data is Map && data.isNotEmpty) {
+      final detail = data['detail'] ?? data.values.first;
+      final text = detail is List ? detail.join(', ') : detail.toString();
+      return AppException(text, status);
     }
     return AppException('เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ ($status)', status);
   }

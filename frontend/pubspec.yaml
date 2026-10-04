@@ -43,6 +43,8 @@ dependencies:
   url_launcher: ^6.3.3
   flutter_web_plugins:
     sdk: flutter
+  go_router: ^18.0.2
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

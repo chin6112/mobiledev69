@@ -1,5 +1,5 @@
 from collections import defaultdict
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from .models import BookingSlot, Expense, Trip, TripMember, TripTask
 from .serializers import BookingSlotSerializer, ExpenseSerializer, TripSerializer, TripTaskSerializer
+from .splits import equal_split
 
 class TripListCreateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -35,6 +36,21 @@ class TripDetailView(APIView):
 
     def get(self, request, trip_id):
         return Response(TripSerializer(self.get_trip(request, trip_id)).data)
+
+    def patch(self, request, trip_id):
+        trip = self.get_trip(request, trip_id)
+        if trip.owner_id != request.user.id:
+            return Response({'detail': 'Only the trip owner can edit this trip.'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = TripSerializer(trip, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        return Response(TripSerializer(serializer.save()).data)
+
+    def delete(self, request, trip_id):
+        trip = self.get_trip(request, trip_id)
+        if trip.owner_id != request.user.id:
+            return Response({'detail': 'Only the trip owner can delete this trip.'}, status=status.HTTP_403_FORBIDDEN)
+        trip.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TripSlotsView(APIView):
@@ -87,19 +103,45 @@ class TripExpensesView(APIView):
             if not members:
                 return Response({'detail': 'Trip has no members.'}, status=status.HTTP_400_BAD_REQUEST)
             amount = Decimal(str(payload.get('amount', '0')))
-            unit = (amount / len(members)).quantize(Decimal('0.01'), rounding=ROUND_DOWN)
-            remainder = amount - (unit * len(members))
-            payload['shares'] = [
-                {
-                    'user': member.id,
-                    'amount': unit + (remainder if index == 0 else Decimal('0.00')),
-                }
-                for index, member in enumerate(members)
-            ]
+            payload['shares'] = equal_split(amount, [member.id for member in members])
         serializer = ExpenseSerializer(data=payload)
         serializer.is_valid(raise_exception=True)
         expense = serializer.save(trip=trip, paid_by=request.user)
         return Response(ExpenseSerializer(expense).data, status=status.HTTP_201_CREATED)
+
+
+class ExpenseDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_expense(self, request, expense_id):
+        return get_object_or_404(
+            Expense.objects.select_related('paid_by', 'trip').prefetch_related('shares__user'),
+            id=expense_id,
+            trip__members=request.user,
+        )
+
+    def _can_modify(self, request, expense):
+        return request.user.id in (expense.paid_by_id, expense.trip.owner_id)
+
+    def get(self, request, expense_id):
+        return Response(ExpenseSerializer(self.get_expense(request, expense_id)).data)
+
+    @transaction.atomic
+    def patch(self, request, expense_id):
+        expense = self.get_expense(request, expense_id)
+        if not self._can_modify(request, expense):
+            return Response({'detail': 'Only the payer or trip owner can edit this expense.'}, status=status.HTTP_403_FORBIDDEN)
+        serializer = ExpenseSerializer(expense, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(ExpenseSerializer(self.get_expense(request, expense_id)).data)
+
+    def delete(self, request, expense_id):
+        expense = self.get_expense(request, expense_id)
+        if not self._can_modify(request, expense):
+            return Response({'detail': 'Only the payer or trip owner can delete this expense.'}, status=status.HTTP_403_FORBIDDEN)
+        expense.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TripSettlementView(APIView):
@@ -164,3 +206,8 @@ class TripTaskDetailView(APIView):
         serializer = TripTaskSerializer(task, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         return Response(TripTaskSerializer(serializer.save()).data)
+
+    def delete(self, request, task_id):
+        task = get_object_or_404(TripTask, id=task_id, trip__members=request.user)
+        task.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

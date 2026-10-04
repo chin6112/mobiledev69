@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../viewmodels/auth_view_model.dart';
+import 'auth_view_model.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -9,6 +9,7 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthViewModel>();
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -21,11 +22,7 @@ class LoginScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.route_rounded,
-                      size: 52,
-                      color: Color(0xFF176B87),
-                    ),
+                    Icon(Icons.route_rounded, size: 52, color: scheme.primary),
                     const SizedBox(height: 12),
                     Text(
                       'เข้าสู่ TripMate',
@@ -43,9 +40,7 @@ class LoginScreen extends StatelessWidget {
                       Text(
                         auth.error!,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+                        style: TextStyle(color: scheme.error),
                       ),
                     ],
                     const SizedBox(height: 24),

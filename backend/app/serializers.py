@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import BookingSlot, Expense, ExpenseShare, Trip, TripMember, TripTask
+from .splits import equal_split
 
 
 class TripMemberSerializer(serializers.ModelSerializer):
@@ -20,6 +21,13 @@ class TripSerializer(serializers.ModelSerializer):
         model = Trip
         fields = ['id', 'title', 'destination', 'start_date', 'end_date', 'status', 'owner', 'members']
         read_only_fields = ['owner', 'members']
+
+    def validate(self, attrs):
+        start = attrs.get('start_date', getattr(self.instance, 'start_date', None))
+        end = attrs.get('end_date', getattr(self.instance, 'end_date', None))
+        if start and end and end < start:
+            raise serializers.ValidationError('End date must not be before start date.')
+        return attrs
 
 
 class BookingSlotSerializer(serializers.ModelSerializer):
@@ -50,8 +58,18 @@ class ExpenseSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         shares = attrs.get('shares', [])
-        if shares and sum((share['amount'] for share in shares), 0) != attrs['amount']:
+        amount = attrs.get('amount', getattr(self.instance, 'amount', None))
+        if amount is not None and amount <= 0:
+            raise serializers.ValidationError('Amount must be greater than zero.')
+        if shares and sum((share['amount'] for share in shares), 0) != amount:
             raise serializers.ValidationError('Expense shares must add up to the total amount.')
+        if (
+            self.instance
+            and not shares
+            and amount != self.instance.amount
+            and self.instance.split_type == Expense.SplitType.CUSTOM
+        ):
+            raise serializers.ValidationError('Provide new shares when changing a custom-split amount.')
         return attrs
 
     def create(self, validated_data):
@@ -61,6 +79,28 @@ class ExpenseSerializer(serializers.ModelSerializer):
             ExpenseShare(expense=expense, **share) for share in shares
         ])
         return expense
+
+    def update(self, instance, validated_data):
+        shares = validated_data.pop('shares', None)
+        amount_changed = 'amount' in validated_data and validated_data['amount'] != instance.amount
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if shares is None and amount_changed and instance.split_type == Expense.SplitType.EQUAL:
+            user_ids = list(instance.shares.values_list('user_id', flat=True))
+            if user_ids:
+                shares = equal_split(instance.amount, user_ids)
+        if shares is not None:
+            instance.shares.all().delete()
+            ExpenseShare.objects.bulk_create([
+                ExpenseShare(
+                    expense=instance,
+                    user_id=getattr(share['user'], 'pk', share['user']),
+                    amount=share['amount'],
+                )
+                for share in shares
+            ])
+        return instance
 
 
 class TripTaskSerializer(serializers.ModelSerializer):

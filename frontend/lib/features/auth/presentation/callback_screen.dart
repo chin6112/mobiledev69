@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../viewmodels/auth_view_model.dart';
+import 'auth_view_model.dart';
 
 /// Handles the redirect from the OIDC provider (`/callback?code=...`).
 class CallbackScreen extends StatefulWidget {
@@ -18,13 +19,11 @@ class _CallbackScreenState extends State<CallbackScreen> {
       .read<AuthViewModel>()
       .completeLogin(widget.callbackUri);
 
-  void _goHome() => Navigator.of(context).pushReplacementNamed('/');
-
   @override
   void initState() {
     super.initState();
     _result.then((ok) {
-      if (ok && mounted) _goHome();
+      if (ok && mounted) context.go('/');
     });
   }
 
@@ -48,7 +47,7 @@ class _CallbackScreenState extends State<CallbackScreen> {
                     ),
                     const SizedBox(height: 16),
                     FilledButton(
-                      onPressed: _goHome,
+                      onPressed: () => context.go('/login'),
                       child: const Text('กลับไปหน้าเข้าสู่ระบบ'),
                     ),
                   ],

@@ -6,6 +6,8 @@ __pycache__/
 
 # Local development database
 backend/db.sqlite3
+*.sqlite3
+*.db
 
 # Flutter/Dart
 .dart_tool/
@@ -13,6 +15,7 @@ backend/db.sqlite3
 .flutter-plugins-dependencies
 .pub-cache/
 /build/
+**/build/
 
 # IDE and local environment
 .vscode/
