@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TripMate - Sign in</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f4f6f8; display: grid; place-items: center; min-height: 100vh; margin: 0; }
+    form { background: #fff; padding: 32px; border-radius: 12px; width: 320px; box-shadow: 0 2px 12px rgba(0,0,0,.1); }
+    h1 { margin: 0 0 16px; font-size: 22px; }
+    label { display: block; margin-top: 12px; font-size: 14px; }
+    input { width: 100%; box-sizing: border-box; padding: 8px; margin-top: 4px; }
+    button { margin-top: 20px; width: 100%; padding: 10px; border: 0; border-radius: 8px; background: #2563eb; color: #fff; font-size: 16px; cursor: pointer; }
+    .error { color: #b91c1c; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <form method="post">
+    {% csrf_token %}
+    <h1>TripMate Sign in</h1>
+    {% if form.errors %}<p class="error">Invalid username or password.</p>{% endif %}
+    <label for="id_username">Username</label>
+    <input type="text" name="username" id="id_username" autofocus required>
+    <label for="id_password">Password</label>
+    <input type="password" name="password" id="id_password" required>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button type="submit">Sign in</button>
+  </form>
+</body>
+</html>

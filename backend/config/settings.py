@@ -41,8 +41,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework_simplejwt',
     'corsheaders',
+    'oidc_provider',
     'app',
 ]
 
@@ -63,7 +63,25 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8080",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:8080",
+    "http://localhost:50000",
+    "http://127.0.0.1:50000",
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'app.authentication.OIDCAccessTokenAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}
+
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/admin/'
+
+SITE_URL = os.getenv('OIDC_SITE_URL', 'http://localhost:8000')
+OIDC_USERINFO = 'app.oidc_hooks.userinfo'
+OIDC_IDTOKEN_INCLUDE_CLAIMS = True
 
 ROOT_URLCONF = 'config.urls'
 

@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from .models import BookingSlot, Expense, ExpenseShare, Trip, TripMember, TripTask
 
 
@@ -71,12 +70,3 @@ class TripTaskSerializer(serializers.ModelSerializer):
         model = TripTask
         fields = ['id', 'trip', 'title', 'description', 'category', 'assigned_to', 'assigned_to_name', 'due_date', 'is_done']
         read_only_fields = ['trip', 'assigned_to_name']
-
-
-class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
-    @classmethod
-    def get_token(cls, user):
-        token = super().get_token(user)
-        # เพิ่ม Custom Claim ลงใน Token
-        token['name'] = user.username
-        return token

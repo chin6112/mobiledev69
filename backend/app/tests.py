@@ -1,24 +1,49 @@
+from datetime import timedelta
+
 from django.contrib.auth.models import User
+from django.utils import timezone
+from oidc_provider.models import Client, Token
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 
-class TripMateApiTests(APITestCase):
-	def test_user_can_register_and_get_jwt(self):
-		response = self.client.post(
-			'/api/auth/register/',
-			{'username': 'pete', 'password': 'strong-pass-123'},
-			format='json',
-		)
-		self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-		token_response = self.client.post(
-			'/api/token/',
-			{'username': 'pete', 'password': 'strong-pass-123'},
-			format='json',
-		)
-		self.assertEqual(token_response.status_code, status.HTTP_200_OK)
-		self.assertIn('access', token_response.data)
+class OIDCAuthenticationTests(APITestCase):
+	def setUp(self):
+		self.user = User.objects.create_user(username='oidc-user', password='strong-pass-123')
+		self.oidc_client = Client.objects.create(name='test', client_id='test-client', client_type='public')
 
+	def make_token(self, expires_in):
+		token = Token(
+			user=self.user,
+			client=self.oidc_client,
+			access_token='access-token-value',
+			expires_at=timezone.now() + expires_in,
+		)
+		token.scope = ['openid']
+		token.save()
+		return token
+
+	def test_valid_oidc_access_token_authenticates_request(self):
+		self.make_token(timedelta(hours=1))
+		self.client.credentials(HTTP_AUTHORIZATION='Bearer access-token-value')
+		self.assertEqual(self.client.get('/api/trips/').status_code, status.HTTP_200_OK)
+
+	def test_expired_token_is_rejected(self):
+		self.make_token(timedelta(hours=-1))
+		self.client.credentials(HTTP_AUTHORIZATION='Bearer access-token-value')
+		self.assertEqual(self.client.get('/api/trips/').status_code, status.HTTP_401_UNAUTHORIZED)
+
+	def test_unknown_token_and_missing_token_are_rejected(self):
+		self.assertEqual(self.client.get('/api/trips/').status_code, status.HTTP_401_UNAUTHORIZED)
+		self.client.credentials(HTTP_AUTHORIZATION='Bearer nope')
+		self.assertEqual(self.client.get('/api/trips/').status_code, status.HTTP_401_UNAUTHORIZED)
+
+	def test_password_register_endpoint_is_removed(self):
+		response = self.client.post('/api/auth/register/', {'username': 'x', 'password': 'y'}, format='json')
+		self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class TripMateApiTests(APITestCase):
 	def test_authenticated_user_can_create_trip(self):
 		user = User.objects.create_user(username='pete', password='strong-pass-123')
 		self.client.force_authenticate(user=user)
@@ -88,3 +113,30 @@ class TripMateApiTests(APITestCase):
 		)
 		self.assertEqual(update_response.status_code, status.HTTP_200_OK)
 		self.assertTrue(update_response.data['is_done'])
+
+	def test_settlement_includes_usernames_and_decimal_amount(self):
+		owner = User.objects.create_user(username='payer', password='strong-pass-123')
+		member = User.objects.create_user(username='receiver', password='strong-pass-123')
+		self.client.force_authenticate(user=owner)
+		trip_response = self.client.post(
+			'/api/trips/',
+			{
+				'title': 'ยอดทริป',
+				'destination': 'อุบลราชธานี',
+				'start_date': '2026-12-10',
+				'end_date': '2026-12-11',
+			},
+			format='json',
+		)
+		from app.models import Expense, ExpenseShare, Trip, TripMember
+
+		trip = Trip.objects.get(id=trip_response.data['id'])
+		TripMember.objects.create(trip=trip, user=member)
+		expense = Expense.objects.create(trip=trip, paid_by=owner, description='อาหาร', amount='100.00')
+		ExpenseShare.objects.create(expense=expense, user=owner, amount='50.00')
+		ExpenseShare.objects.create(expense=expense, user=member, amount='50.00')
+		response = self.client.get(f'/api/trips/{trip.id}/settlement/')
+		self.assertEqual(response.status_code, status.HTTP_200_OK)
+		self.assertEqual(response.data['transfers'][0]['from_username'], 'receiver')
+		self.assertEqual(response.data['transfers'][0]['to_username'], 'payer')
+		self.assertEqual(response.data['transfers'][0]['amount'], '50.00')

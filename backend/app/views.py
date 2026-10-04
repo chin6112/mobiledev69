@@ -115,13 +115,22 @@ class TripSettlementView(APIView):
 
         creditors = [[user_id, amount] for user_id, amount in balances.items() if amount > 0]
         debtors = [[user_id, -amount] for user_id, amount in balances.items() if amount < 0]
+        usernames = dict(
+            trip.members.filter(id__in=balances.keys()).values_list('id', 'username')
+        )
         transfers = []
         creditor_index = debtor_index = 0
         while creditor_index < len(creditors) and debtor_index < len(debtors):
             creditor_id, credit = creditors[creditor_index]
             debtor_id, debt = debtors[debtor_index]
             amount = min(credit, debt)
-            transfers.append({'from_user': debtor_id, 'to_user': creditor_id, 'amount': amount})
+            transfers.append({
+                'from_user': debtor_id,
+                'from_username': usernames[debtor_id],
+                'to_user': creditor_id,
+                'to_username': usernames[creditor_id],
+                'amount': str(amount.quantize(Decimal('0.01'))),
+            })
             creditors[creditor_index][1] -= amount
             debtors[debtor_index][1] -= amount
             if creditors[creditor_index][1] == 0:
