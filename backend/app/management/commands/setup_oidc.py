@@ -23,7 +23,6 @@ class Command(BaseCommand):
         )
         client.client_type = 'public'
         client.client_secret = ''
-        client.require_consent = False
         client.reuse_consent = True
         client.redirect_uris = REDIRECT_URIS
         client.post_logout_redirect_uris = POST_LOGOUT_REDIRECT_URIS
