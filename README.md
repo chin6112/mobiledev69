@@ -101,7 +101,7 @@ flutter run -d chrome --web-port 50000
 
 ## Demo Video
 
-🎬 TODO: ใส่ลิงก์วิดีโอ (YouTube unlisted) ที่นี่
+🎬 TODO: https://youtu.be/isJHQd-1B7E
 
 ## เอกสารเพิ่มเติม
 
