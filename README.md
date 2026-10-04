@@ -64,6 +64,7 @@ cd mobiledev69
 **Terminal 1 — Backend (OIDC Server + API)**
 
 ```bash
+cd mobiledev69
 cd backend
 uv sync
 uv run manage.py migrate
@@ -74,6 +75,7 @@ uv run manage.py runserver
 **Terminal 2 — Flutter Web App**
 
 ```bash
+cd mobiledev69
 cd frontend
 flutter pub get
 flutter run -d chrome --web-port 50000
